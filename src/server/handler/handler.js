@@ -201,8 +201,8 @@ const uploadImageHandler = async (request, h) => {
         // request.info.host akan secara otomatis menjadi host Railway Anda
         const imageUrl = `http://${request.info.host}/public/images/${uniqueFilename}`;
 
-        // Contoh: Simpan imageUrl ke database (asumsi Anda memiliki model berita atau semacamnya)
-        // const newNews = await db.news.create({ data: { title: 'New Image News', imageUrl: imageUrl, content: '...' } });
+        // Contoh: Simpan imageUrl ke database menggunakan model Sequelize
+        // const newNews = await News.create({ id: nanoid(), title: 'New Image Upload', content: 'Content here', imageUrl: imageUrl });
 
         return h.response({ status: 'success', message: 'Image uploaded successfully', data: { imageUrl } }).code(200);
 

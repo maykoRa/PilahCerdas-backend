@@ -1,10 +1,9 @@
 const Hapi = require('@hapi/hapi');
-const Inert = require('@hapi/inert'); //  Plugin untuk menyajikan file statis
+const Inert = require('@hapi/inert'); // Plugin untuk menyajikan file statis
 const path = require('path');        // Modul path untuk bekerja dengan jalur file
-const routes = require('./routes/news-routes'); //  Pastikan path ini benar relatif terhadap server.js (misalnya jika routes ada di ./routes/)
+const routes = require('./routes/news-routes'); // Pastikan path ini benar relatif terhadap server.js (misalnya jika routes ada di ./routes/)
 
-// Jika Anda menggunakan dotenv untuk lingkungan lokal, pastikan itu diimpor
-// require('dotenv').config(); 
+// require('dotenv').config(); // Uncomment jika Anda menggunakan .env lokal
 
 const init = async () => {
     const server = Hapi.server({
@@ -28,7 +27,7 @@ const init = async () => {
     });
 
     // Daftarkan plugin Inert untuk melayani file statis
-    await server.register(Inert); // 
+    await server.register(Inert); 
 
     // Konfigurasi untuk melayani gambar dari folder 'public/images'
     server.route({
@@ -46,7 +45,7 @@ const init = async () => {
     });
 
     // Daftarkan rute API Anda yang lain
-    server.route(routes); //  Contoh rute API Anda
+    server.route(routes); // Contoh rute API Anda
 
     // Contoh rute kesehatan untuk memverifikasi server berjalan
     server.route({
