@@ -54,15 +54,15 @@ async function connectDB() {
     try {
         await sequelize.authenticate();
         console.log('Koneksi ke database MySQL (via Sequelize) berhasil!');
-        // Untuk pengembangan cepat, Anda bisa mengaktifkan sinkronisasi model di sini.
-        // HATI-HATI: sequelize.sync() di production bisa berbahaya bagi data.
-        // Sebaiknya gunakan migrasi Sequelize untuk production.
-        // await sequelize.sync(); 
-        // console.log('Semua model telah disinkronkan!');
+
+        // --- AKTIFKAN BARIS INI ---
+        await sequelize.sync(); 
+        console.log('Semua model telah disinkronkan!');
+        // --- AKHIR AKTIVASI ---
+
     } catch (error) {
         console.error('Gagal terhubung ke database MySQL (via Sequelize):', error);
-        // Pertimbangkan untuk keluar dari proses jika koneksi database kritis
-        // process.exit(1); 
+        // ...
     }
 }
 
