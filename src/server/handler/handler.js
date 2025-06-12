@@ -230,6 +230,10 @@ const uploadImageHandler = async (request, h) => {
 
     const uploadedFile = files.image && files.image[0];
 
+    console.log(`Uploaded file path from Formidable: ${uploadedFile.filepath}`);
+    console.log(`Original filename: ${uploadedFile.originalFilename}`);
+    console.log(`File name after formidable save: ${path.basename(uploadedFile.filepath)}`);
+
     if (!uploadedFile) {
       throw Boom.badRequest(
         "Tidak ada gambar yang diunggah atau nama field tidak tepat."
@@ -253,7 +257,7 @@ const uploadImageHandler = async (request, h) => {
 
     await fs.promises.rename(oldPath, newPath);
 
-    const imageUrl = `https://${request.info.host}/public/images/${uniqueFilename}`;
+    const imageUrl = `https://${request.info.host}/public/images/${path.basename(uploadedFile.filepath)}`;
 
     return h
       .response({
