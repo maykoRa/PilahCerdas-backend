@@ -29,6 +29,36 @@ const init = async () => {
     // Daftarkan plugin Inert untuk melayani file statis
     await server.register(Inert); 
 
+    server.route({
+        method: 'GET',
+        path: '/debug/image/{filename}', // Contoh: /debug/image/namafile.jpg
+        handler: async (request, h) => {
+            const filename = request.params.filename;
+            const filePath = path.join(__dirname, 'src', 'public', 'images', filename); // Path yang diharapkan
+            
+            console.log(`DEBUG: Mencoba membaca file di: ${filePath}`);
+
+            try {
+                // Periksa apakah file ada
+                await fs.promises.access(filePath, fs.constants.R_OK); // R_OK = izin baca
+                console.log(`DEBUG: File ${filename} ditemukan dan dapat dibaca.`);
+
+                // Jika file ditemukan, sajikan sebagai respons
+                return h.file(filePath); // Gunakan h.file() dari Inert
+
+            } catch (error) {
+                console.error(`DEBUG: Gagal mengakses file ${filename} di ${filePath}:`, error.message);
+                // Tambahkan log detail error di sini untuk membedakan ENOENT, EACCES dll.
+                if (error.code === 'ENOENT') {
+                    return h.response({ status: 'fail', message: 'File tidak ditemukan di jalur yang diharapkan.' }).code(404);
+                } else if (error.code === 'EACCES') {
+                    return h.response({ status: 'fail', message: 'Tidak ada izin baca untuk file.' }).code(403);
+                }
+                return h.response({ status: 'error', message: `Kesalahan server: ${error.message}` }).code(500);
+            }
+        }
+    });
+
     // Konfigurasi untuk melayani gambar dari folder 'public/images'
     server.route({
         method: 'GET',
