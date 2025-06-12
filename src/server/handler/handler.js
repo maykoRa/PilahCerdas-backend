@@ -5,6 +5,27 @@ const fs = require("fs");
 const path = require("path");
 const { Formidable } = require("formidable");
 const educationContent = require("../data/education");
+const { Storage } = require('@google-cloud/storage');
+
+let storage;
+try {
+    if (process.env.GCS_CREDENTIALS_BASE64) {
+        const credentials = JSON.parse(Buffer.from(process.env.GCS_CREDENTIALS_BASE64, 'base64').toString('utf8'));
+        storage = new Storage({ credentials });
+    } else {
+        // Fallback untuk lokal jika menggunakan GOOGLE_APPLICATION_CREDENTIALS file path
+        // require('dotenv').config(); // Pastikan dotenv di-require jika menggunakan .env
+        // Contoh: GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/key.json
+        storage = new Storage(); // Ini akan mencari GOOGLE_APPLICATION_CREDENTIALS
+    }
+    console.log("Google Cloud Storage client initialized.");
+} catch (error) {
+    console.error("Error initializing Google Cloud Storage client:", error);
+    storage = null; // Pastikan storage null jika gagal
+}
+
+// Dapatkan nama bucket dari variabel lingkungan
+const GCS_BUCKET_NAME = process.env.GCS_BUCKET_NAME;
 
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "admin123";
@@ -168,118 +189,68 @@ const deleteNewsByIdHandler = async (request, h) => {
 };
 
 const uploadImageHandler = async (request, h) => {
-  console.log("--- Inside uploadImageHandler (with formidable parser) ---");
-  console.log("Request Headers:", request.headers);
+    console.log("--- Inside uploadImageHandler (GCS version) ---");
+    console.log("Request Headers:", request.headers);
 
-  authenticateAdmin(request, h);
+    if (!storage || !GCS_BUCKET_NAME) {
+        return h.response({ status: 'error', message: 'GCS storage not configured properly.' }).code(500);
+    }
 
-  // --- Tentukan path uploadDirRoot dengan TEPAT ---
-  let uploadDirRoot;
-  // PENTING: Pilih salah satu di bawah ini berdasarkan struktur repo Anda:
+    try {
+        // Hapi.js dengan 'multipart: true' dan 'output: stream' akan mem-parse payload seperti ini:
+        const imagePayload = request.payload.image; // Asumsi field gambar bernama 'image'
 
-  // Jika folder public/images ada di ROOT repositori:
-  // uploadDirRoot = path.join(process.cwd(), 'public', 'images'); 
-
-  // JIKA folder public/images ada di dalam folder 'src/' di repositori:
-  uploadDirRoot = path.join(process.cwd(), 'src', 'public', 'images'); 
-
-  console.log(`Calculated uploadDirRoot: ${uploadDirRoot}`); // Debugging: Lihat path ini di log Railway
-
-  // --- PASTIKAN DIREKTORI DIBUAT SEBELUM FORMIDABLE DIGUNAKAN ---
-  try {
-      if (!fs.existsSync(uploadDirRoot)) {
-          fs.mkdirSync(uploadDirRoot, { recursive: true });
-          console.log(`SUCCESS: Direktori upload dibuat: ${uploadDirRoot}`);
-      } else {
-          console.log(`INFO: Direktori upload sudah ada: ${uploadDirRoot}`);
-      }
-  } catch (dirError) {
-      console.error(`ERROR: Gagal membuat direktori upload: ${uploadDirRoot}`, dirError);
-      // Lempar error agar request gagal jika direktori tidak bisa dibuat
-      throw Boom.badImplementation(`Gagal mengunggah gambar. Direktori penyimpanan tidak dapat dibuat: ${dirError.message}`);
-  }
-
-  const form = new Formidable({
-    multiples: false,
-    uploadDir: uploadDirRoot,
-    keepExtensions: true,
-    maxFileSize: 5 * 1024 * 1024,
-  });
-
-  try {
-    const [fields, files] = await new Promise((resolve, reject) => {
-      // --- TAMBAHKAN LOG DEBUG INI DI SINI ---
-      form.parse(request.payload, (err, fields, files) => {
-        console.log("Formidable parse result:");
-        console.log("Error from formidable:", err);
-        console.log("Fields from formidable:", fields);
-        console.log("Files from formidable:", files); // <--- INI PENTING!
-        // --- AKHIR LOG DEBUG ---
-
-        if (err) {
-          // Jika ini error, periksa error.message atau error.code
-          console.error("Formidable parse error:", err);
-          if (err.code === 1009) { // Contoh error code Formidable untuk file too large
-             return reject(Boom.entityTooLarge("Ukuran file gambar terlalu besar."));
-          }
-          return reject(err);
+        if (!imagePayload || !imagePayload.hapi.filename) {
+            return h.response({ status: 'fail', message: 'No image file uploaded.' }).code(400);
         }
-        resolve([fields, files]);
-      });
-    });
 
-    const uploadedFile = files.image && files.image[0];
+        const originalFilename = imagePayload.hapi.filename;
+        const fileExtension = path.extname(originalFilename);
+        const uniqueFilename = `${nanoid(16)}${fileExtension}`; // Buat nama file unik
+        const gcsFile = storage.bucket(GCS_BUCKET_NAME).file(uniqueFilename);
 
-    console.log(`Uploaded file path from Formidable: ${uploadedFile.filepath}`);
-    console.log(`Original filename: ${uploadedFile.originalFilename}`);
-    console.log(`File name after formidable save: ${path.basename(uploadedFile.filepath)}`);
+        // --- Upload stream langsung ke GCS ---
+        const writeStream = gcsFile.createWriteStream({
+            metadata: {
+                contentType: imagePayload.hapi.headers['content-type'] // Setel MIME type
+            }
+        });
 
-    if (!uploadedFile) {
-      throw Boom.badRequest(
-        "Tidak ada gambar yang diunggah atau nama field tidak tepat."
-      );
+        await new Promise((resolve, reject) => {
+            imagePayload.pipe(writeStream)
+                .on('finish', () => {
+                    // Membuat file dapat diakses secara publik (jika bucket belum publik)
+                    gcsFile.makePublic().then(() => {
+                        resolve();
+                    }).catch(publicError => {
+                        console.warn("Could not make file public (may already be public or permission issue):", publicError.message);
+                        resolve(); // Lanjutkan meskipun gagal membuat publik, mungkin sudah diatur di bucket
+                    });
+                })
+                .on('error', (err) => {
+                    console.error("GCS upload stream error:", err);
+                    reject(err);
+                });
+        });
+
+        // URL publik gambar di GCS
+        const imageUrl = `https://storage.googleapis.com/${GCS_BUCKET_NAME}/${uniqueFilename}`;
+
+        // ... (Logika untuk menyimpan imageUrl ke database tetap sama) ...
+        // const newNews = await News.create({ id: nanoid(), title: 'Image News', content: '...', imageUrl: imageUrl });
+
+        return h
+            .response({
+                status: 'success',
+                message: 'Gambar berhasil diunggah ke GCS.',
+                data: { imageUrl: imageUrl }
+            })
+            .code(200);
+
+    } catch (error) {
+        console.error("Error during GCS image upload:", error);
+        return h.response({ status: 'error', message: `Gagal mengunggah gambar ke GCS: ${error.message}` }).code(500);
     }
-
-    const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif"];
-    if (!allowedMimeTypes.includes(uploadedFile.mimetype)) {
-      if (fs.existsSync(uploadedFile.filepath)) {
-        fs.unlinkSync(uploadedFile.filepath);
-      }
-      throw Boom.badRequest(
-        "Format file tidak didukung. Hanya JPEG, PNG, atau GIF yang diizinkan."
-      );
-    }
-
-    const oldPath = uploadedFile.filepath;
-    const fileExtension = path.extname(uploadedFile.originalFilename);
-    const uniqueFilename = `${nanoid(16)}${fileExtension}`;
-    const newPath = path.join(__dirname, "../../public/images", uniqueFilename);
-
-    await fs.promises.rename(oldPath, newPath);
-
-    const imageUrl = `https://${request.info.host}/public/images/${path.basename(uploadedFile.filepath)}`;
-
-    return h
-      .response({
-        status: "success",
-        message: "Gambar berhasil diunggah",
-        data: {
-          imageUrl: imageUrl,
-        },
-      })
-      .code(200);
-  } catch (error) {
-    if (Boom.isBoom(error)) {
-      throw error;
-    }
-    if (error.code === 1009) {
-      throw Boom.entityTooLarge("Ukuran file gambar terlalu besar.");
-    }
-    console.error("Error during image upload with formidable:", error);
-    throw Boom.badImplementation(
-      "Gagal mengunggah gambar. Terjadi kesalahan server."
-    );
-  }
 };
 
 const getEducationByCategoryHandler = (request, h) => {

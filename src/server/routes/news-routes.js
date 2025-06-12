@@ -47,8 +47,8 @@ const routes = [
     options: {
       payload: {
         output: "stream",
-        parse: false,
-        allow: "multipart/form-data",
+        parse: true,        // Hapi.js AKAN mem-parse payload otomatis
+        multipart: true, 
         maxBytes: 5 * 1024 * 1024,
       },
     },
