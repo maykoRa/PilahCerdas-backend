@@ -32,14 +32,15 @@ const init = async () => {
     // Konfigurasi untuk melayani gambar dari folder 'public/images'
     server.route({
         method: 'GET',
-        path: '/public/images/{param*}', // {param*} menangkap semua setelah /public/images/
+        path: '/public/images/{param*}', 
         handler: {
             directory: {
-                // path.join(__dirname, 'public', 'images') akan menunjuk ke
-                // folder 'public/images' di root repositori backend Anda
-                path: path.join(__dirname, 'public', 'images'), 
+                // Perbaiki path ini agar sesuai dengan tempat formidable menyimpan gambar
+                // __dirname adalah '/app/'
+                // Jadi, path.join(__dirname, 'src', 'public', 'images') akan menjadi '/app/src/public/images/'
+                path: path.join(__dirname, 'src', 'public', 'images'), // <--- INI PERBAIKANNYA!
                 redirectToSlash: true,
-                index: false, // Jangan melayani file index jika ada
+                index: false, 
             }
         }
     });
