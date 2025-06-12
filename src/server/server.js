@@ -1,6 +1,7 @@
 const Hapi = require('@hapi/hapi');
 const Inert = require('@hapi/inert'); // Plugin untuk menyajikan file statis
-const path = require('path');        // Modul path untuk bekerja dengan jalur file
+const path = require('path');  
+const fs = require('fs');      // Modul path untuk bekerja dengan jalur file
 const routes = require('./routes/news-routes'); // Pastikan path ini benar relatif terhadap server.js (misalnya jika routes ada di ./routes/)
 
 // require('dotenv').config(); // Uncomment jika Anda menggunakan .env lokal
