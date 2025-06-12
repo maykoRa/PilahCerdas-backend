@@ -168,48 +168,76 @@ const deleteNewsByIdHandler = async (request, h) => {
 };
 
 const uploadImageHandler = async (request, h) => {
-    try {
-        const { image } = request.payload; // Asumsi gambar dikirim via payload 'image'
+  console.log("--- Inside uploadImageHandler (with formidable parser) ---");
+  console.log("Request Headers:", request.headers);
 
-        if (!image || !image.hapi.filename) {
-            return h.response({ status: 'fail', message: 'No image file uploaded.' }).code(400);
+  authenticateAdmin(request, h);
+
+  const form = new Formidable({
+    multiples: false,
+    uploadDir: path.join(__dirname, "../../public/images"),
+    keepExtensions: true,
+    maxFileSize: 5 * 1024 * 1024,
+  });
+
+  try {
+    const [fields, files] = await new Promise((resolve, reject) => {
+      form.parse(request.payload, (err, fields, files) => {
+        if (err) {
+          return reject(err);
         }
+        resolve([fields, files]);
+      });
+    });
 
-        const uniqueFilename = `${nanoid()}-${image.hapi.filename}`;
-        
-        // --- Path untuk menyimpan gambar di server Railway ---
-        // __dirname adalah direktori handler/ (misalnya PilahCerdas-backend/handler/)
-        // '..' naik satu tingkat ke root PilahCerdas-backend/
-        // lalu masuk ke 'public/images/'
-        const uploadPath = path.join(__dirname, '..', 'public', 'images', uniqueFilename); 
+    const uploadedFile = files.image && files.image[0];
 
-        const fileStream = fs.createWriteStream(uploadPath);
-
-        await new Promise((resolve, reject) => {
-            image.pipe(fileStream);
-            image.on('end', (err) => {
-                if (err) reject(err);
-                fileStream.end(); // Tutup stream setelah selesai
-                resolve();
-            });
-            fileStream.on('error', (err) => { // Tangani error stream juga
-                reject(err);
-            });
-        });
-
-        // --- URL untuk diakses oleh frontend ---
-        // request.info.host akan secara otomatis menjadi host Railway Anda
-        const imageUrl = `http://${request.info.host}/public/images/${uniqueFilename}`;
-
-        // Contoh: Simpan imageUrl ke database menggunakan model Sequelize
-        // const newNews = await News.create({ id: nanoid(), title: 'New Image Upload', content: 'Content here', imageUrl: imageUrl });
-
-        return h.response({ status: 'success', message: 'Image uploaded successfully', data: { imageUrl } }).code(200);
-
-    } catch (error) {
-        console.error('Error uploading image:', error);
-        return h.response({ status: 'error', message: 'Failed to upload image.', details: error.message }).code(500);
+    if (!uploadedFile) {
+      throw Boom.badRequest(
+        "Tidak ada gambar yang diunggah atau nama field tidak tepat."
+      );
     }
+
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif"];
+    if (!allowedMimeTypes.includes(uploadedFile.mimetype)) {
+      if (fs.existsSync(uploadedFile.filepath)) {
+        fs.unlinkSync(uploadedFile.filepath);
+      }
+      throw Boom.badRequest(
+        "Format file tidak didukung. Hanya JPEG, PNG, atau GIF yang diizinkan."
+      );
+    }
+
+    const oldPath = uploadedFile.filepath;
+    const fileExtension = path.extname(uploadedFile.originalFilename);
+    const uniqueFilename = `${nanoid(16)}${fileExtension}`;
+    const newPath = path.join(__dirname, "../../public/images", uniqueFilename);
+
+    await fs.promises.rename(oldPath, newPath);
+
+    const imageUrl = `https://${request.info.host}/public/images/${uniqueFilename}`;
+
+    return h
+      .response({
+        status: "success",
+        message: "Gambar berhasil diunggah",
+        data: {
+          imageUrl: imageUrl,
+        },
+      })
+      .code(200);
+  } catch (error) {
+    if (Boom.isBoom(error)) {
+      throw error;
+    }
+    if (error.code === 1009) {
+      throw Boom.entityTooLarge("Ukuran file gambar terlalu besar.");
+    }
+    console.error("Error during image upload with formidable:", error);
+    throw Boom.badImplementation(
+      "Gagal mengunggah gambar. Terjadi kesalahan server."
+    );
+  }
 };
 
 const getEducationByCategoryHandler = (request, h) => {
