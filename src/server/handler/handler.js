@@ -219,13 +219,7 @@ const uploadImageHandler = async (request, h) => {
         await new Promise((resolve, reject) => {
             imagePayload.pipe(writeStream)
                 .on('finish', () => {
-                    // Membuat file dapat diakses secara publik (jika bucket belum publik)
-                    gcsFile.makePublic().then(() => {
-                        resolve();
-                    }).catch(publicError => {
-                        console.warn("Could not make file public (may already be public or permission issue):", publicError.message);
-                        resolve(); // Lanjutkan meskipun gagal membuat publik, mungkin sudah diatur di bucket
-                    });
+                    resolve();
                 })
                 .on('error', (err) => {
                     console.error("GCS upload stream error:", err);
