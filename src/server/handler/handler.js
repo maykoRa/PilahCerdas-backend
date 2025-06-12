@@ -182,8 +182,20 @@ const uploadImageHandler = async (request, h) => {
 
   try {
     const [fields, files] = await new Promise((resolve, reject) => {
+      // --- TAMBAHKAN LOG DEBUG INI DI SINI ---
       form.parse(request.payload, (err, fields, files) => {
+        console.log("Formidable parse result:");
+        console.log("Error from formidable:", err);
+        console.log("Fields from formidable:", fields);
+        console.log("Files from formidable:", files); // <--- INI PENTING!
+        // --- AKHIR LOG DEBUG ---
+
         if (err) {
+          // Jika ini error, periksa error.message atau error.code
+          console.error("Formidable parse error:", err);
+          if (err.code === 1009) { // Contoh error code Formidable untuk file too large
+             return reject(Boom.entityTooLarge("Ukuran file gambar terlalu besar."));
+          }
           return reject(err);
         }
         resolve([fields, files]);
