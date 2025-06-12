@@ -173,9 +173,35 @@ const uploadImageHandler = async (request, h) => {
 
   authenticateAdmin(request, h);
 
+  // --- Tentukan path uploadDirRoot dengan TEPAT ---
+  let uploadDirRoot;
+  // PENTING: Pilih salah satu di bawah ini berdasarkan struktur repo Anda:
+
+  // Jika folder public/images ada di ROOT repositori:
+  // uploadDirRoot = path.join(process.cwd(), 'public', 'images'); 
+
+  // JIKA folder public/images ada di dalam folder 'src/' di repositori:
+  uploadDirRoot = path.join(process.cwd(), 'src', 'public', 'images'); 
+
+  console.log(`Calculated uploadDirRoot: ${uploadDirRoot}`); // Debugging: Lihat path ini di log Railway
+
+  // --- PASTIKAN DIREKTORI DIBUAT SEBELUM FORMIDABLE DIGUNAKAN ---
+  try {
+      if (!fs.existsSync(uploadDirRoot)) {
+          fs.mkdirSync(uploadDirRoot, { recursive: true });
+          console.log(`SUCCESS: Direktori upload dibuat: ${uploadDirRoot}`);
+      } else {
+          console.log(`INFO: Direktori upload sudah ada: ${uploadDirRoot}`);
+      }
+  } catch (dirError) {
+      console.error(`ERROR: Gagal membuat direktori upload: ${uploadDirRoot}`, dirError);
+      // Lempar error agar request gagal jika direktori tidak bisa dibuat
+      throw Boom.badImplementation(`Gagal mengunggah gambar. Direktori penyimpanan tidak dapat dibuat: ${dirError.message}`);
+  }
+
   const form = new Formidable({
     multiples: false,
-    uploadDir: path.join(__dirname, "../../public/images"),
+    uploadDir: uploadDirRoot,
     keepExtensions: true,
     maxFileSize: 5 * 1024 * 1024,
   });
