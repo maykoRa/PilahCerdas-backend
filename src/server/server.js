@@ -21,7 +21,7 @@ const init = async () => {
                 // Izinkan permintaan dari semua origin untuk fleksibilitas saat ini
                 // DI PRODUKSI, SANGAT DIREKOMENDASIKAN UNTUK MEMBATASI KE DOMAIN FRONTEND ANDA SAJA!
                 // Contoh: origin: ['https://your-frontend-domain.com', 'http://localhost:9001'],
-                origin: ['*'], 
+                origin: [' https://maykora.github.io/PilahCerdas/', 'http://localhost:9001'], 
                 credentials: true
             }
         }
